@@ -24,6 +24,10 @@
 
 #include "mqtt_client.h"
 
+#include "u8g2.h"
+#include "u8g2_esp32_hal.h"
+
+
 
 extern const uint8_t server_cert_pem_start[] asm("_binary_AmazonRootCA1_pem_start");
 extern const uint8_t server_cert_pem_end[] asm("_binary_AmazonRootCA1_pem_end");
@@ -68,7 +72,7 @@ static EventGroupHandle_t s_wifi_event_group;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
-static const char *TAG = "wifi station";
+static const char *TAG = "esp32_proj1";
 
 static int s_retry_num = 0;
 
@@ -270,6 +274,17 @@ void wifi_init_sta(void)
     }
 }
 
+
+// Create a U8g2log object
+u8log_t u8log;
+
+// assume 4x6 font, define width and height
+#define U8LOG_WIDTH 16
+#define U8LOG_HEIGHT 4
+
+// allocate memory
+uint8_t u8log_buffer[U8LOG_WIDTH*U8LOG_HEIGHT];
+
 void app_main(void)
 {
     //Initialize NVS
@@ -285,6 +300,103 @@ void app_main(void)
     // esp_log_level_set("mqtt_client",  ESP_LOG_DEBUG);
     // esp_log_level_set("esp-tls-mbedtls",  ESP_LOG_DEBUG);
     // esp_log_level_set("transport_base",  ESP_LOG_DEBUG);
+    esp_log_level_set("u8g2_hal",  ESP_LOG_DEBUG);
+    esp_log_level_set("i2c",  ESP_LOG_DEBUG);
+    esp_log_level_set("esp32_proj1",  ESP_LOG_DEBUG);
+    
+    
 
-    wifi_init_sta();
+
+    u8g2_esp32_hal_t u8g2_esp32_hal = U8G2_ESP32_HAL_DEFAULT;
+    u8g2_esp32_hal.bus.i2c.sda = GPIO_NUM_5;
+    u8g2_esp32_hal.bus.i2c.scl = GPIO_NUM_4;
+    u8g2_esp32_hal_init(u8g2_esp32_hal);
+
+    u8g2_t u8g2; // a structure which will contain all the data for one display
+    
+    u8g2_Setup_ssd1306_i2c_128x64_noname_f(
+      &u8g2, U8G2_R2,
+      // u8x8_byte_sw_i2c,
+      u8g2_esp32_i2c_byte_cb,
+      u8g2_esp32_gpio_and_delay_cb); // init u8g2 structure
+    ESP_LOGI(TAG, "finished u8g2 setup");
+
+
+    u8log_Init(&u8log, U8LOG_WIDTH, U8LOG_HEIGHT, u8log_buffer);
+    ESP_LOGI(TAG, "finished u8log init");
+
+    u8log_SetCallback(&u8log, u8log_u8g2_cb, &u8g2); 
+    ESP_LOGI(TAG, "finished u8log setcallback");
+
+    u8x8_SetI2CAddress(&u8g2.u8x8, 0x3c << 1);
+    ESP_LOGI(TAG, "set u8g2 address");
+
+    u8g2_InitDisplay(&u8g2); // send init sequence to the display, display is in sleep mode after this,
+    ESP_LOGI(TAG, "finished u8g2 init");
+
+    ESP_LOGI(TAG, "u8g2_SetPowerSave");
+    u8g2_SetPowerSave(&u8g2, 0);  // wake up display
+    ESP_LOGI(TAG, "u8g2_ClearBuffer");
+    u8g2_ClearBuffer(&u8g2);
+    // ESP_LOGI(TAG, "u8g2_DrawBox");
+    // u8g2_DrawBox(&u8g2, 0, 26, 80, 6);
+    // u8g2_DrawFrame(&u8g2, 0, 26, 100, 6);
+
+
+// TINY:
+    // u8g2_SetFont(&u8g2, u8g2_font_simple1_tr);
+    // u8g2_SetFont(&u8g2, u8g2_font_minuteconsole_tr);
+
+
+// SMALL:
+    // u8g2_SetFont(&u8g2, u8g2_font_helvR08_tr);
+    // u8g2_SetFont(&u8g2, u8g2_font_glasstown_nbp_tr);
+
+    // u8g2_SetFont(&u8g2, u8g2_font_prospero_nbp_tr);
+    // u8g2_SetFont(&u8g2, u8g2_font_crox1h_tr);
+    // u8g2_SetFont(&u8g2, u8g2_font_minicute_tr);
+
+// MEDIUM:
+    // u8g2_SetFont(&u8g2, u8g2_font_helvR10_tr);
+    // u8g2_SetFont(&u8g2, u8g2_font_luRS10_tr);
+
+// MEDIUMLARGE:
+    // u8g2_SetFont(&u8g2, u8g2_font_helvR12_tr);
+    // u8g2_SetFont(&u8g2, u8g2_font_crox3h_tr);
+
+
+// smallcaps:
+    // u8g2_SetFont(&u8g2, u8g2_font_mercutio_sc_nbp_tr);
+
+// ok, not good enough
+    // u8g2_SetFont(&u8g2, u8g2_font_crox2h_tr);
+    // u8g2_SetFont(&u8g2, u8g2_font_Untitled16PixelSansSerifBitmap_tr);
+    // u8g2_SetFont(&u8g2, u8g2_font_HelvetiPixel_tr);
+    // u8g2_SetFont(&u8g2, u8g2_font_tallpixelextended_tr);
+
+    ESP_LOGI(TAG, "u8g2_SetFont");
+
+    u8g2_SetFont(&u8g2, u8g2_font_helvR10_tr);
+
+    ESP_LOGI(TAG, "u8g2_DrawStr");
+    // u8g2_DrawStr(&u8g2, 2, 17, "Hi nkolban!");
+    u8g2_DrawStr(&u8g2, 2, 15, "ETAOINSHRDL");
+    u8g2_DrawStr(&u8g2, 2, 32, "etaoinshrdlcumw");
+
+    ESP_LOGI(TAG, "u8g2_SendBuffer");
+    u8g2_SendBuffer(&u8g2);
+
+    ESP_LOGI(TAG, "All done!");
+    vTaskDelay( 2000 / portTICK_PERIOD_MS);
+    ESP_LOGI(TAG, "write line");
+
+    u8log_WriteString(&u8log, "HEADER 1:\n");
+    ESP_LOGI(TAG, "wrote 1");
+    vTaskDelay( 2000 / portTICK_PERIOD_MS);
+    ESP_LOGI(TAG, "write line");
+    u8log_WriteString(&u8log, "log line 1\n");
+    ESP_LOGI(TAG, "wrote 2");
+
+
+    // wifi_init_sta();
 }

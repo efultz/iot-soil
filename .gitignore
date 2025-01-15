@@ -2,3 +2,5 @@ x509_crt_bundle.S
 connect_device_package
 .vscode
 build
+Makefile
+
